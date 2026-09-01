@@ -5,7 +5,6 @@ from src.simulation.simulation_engine import SimulationEngine
 from src.simulation.scenarios import SCENARIOS
 from src.database.repositories import (
     clear_simulation_data,
-    create_simulation_snapshot,
 )
 
 
@@ -18,8 +17,8 @@ st.title("⚙️ Simulação")
 
 if "simulation_engine" not in st.session_state:
 
-    st.session_state.simulation_engine = SimulationEngine(
-        interval=5
+    st.session_state.simulation_engine = (
+        SimulationEngine(interval=5)
     )
 
 
@@ -30,11 +29,6 @@ state = engine.state
 if "simulation_running" not in st.session_state:
 
     st.session_state.simulation_running = False
-
-
-if "simulation_result" not in st.session_state:
-
-    st.session_state.simulation_result = None
 
 
 # ============================================================
@@ -57,11 +51,13 @@ with col1:
         use_container_width=True,
     ):
 
-        create_simulation_snapshot()
+        started = (
+            engine.start_background()
+        )
 
-        state.start()
+        if started:
 
-        st.session_state.simulation_running = True
+            st.session_state.simulation_running = True
 
         st.rerun()
 
@@ -77,7 +73,7 @@ with col2:
         use_container_width=True,
     ):
 
-        state.stop()
+        engine.stop()
 
         st.session_state.simulation_running = False
 
@@ -95,11 +91,15 @@ with col3:
         use_container_width=True,
     ):
 
+        engine.stop()
+
         state.reset()
 
-        st.session_state.simulation_running = False
+        engine.last_result = None
 
-        st.session_state.simulation_result = None
+        engine.last_error = None
+
+        st.session_state.simulation_running = False
 
         st.rerun()
 
@@ -142,63 +142,52 @@ scenario = st.selectbox(
     ),
 )
 
+
 if scenario != state.scenario:
 
-    state.set_scenario(scenario)
+    state.set_scenario(
+        scenario
+    )
 
 
 # ============================================================
-# FRAGMENTO DA SIMULAÇÃO
-# ============================================================
-#
-# IMPORTANTE:
-#
-# Tudo que muda durante a simulação está dentro deste
-# fragmento.
-#
-# Isso inclui:
-#
-# - execução do ciclo
-# - status
-# - eventos
-# - vendas
-# - compras
-# - entregas
-# - tempo simulado
-# - último ciclo
-#
-# O fragmento é atualizado automaticamente a cada segundo.
-#
+# VIEW DINÂMICA
 # ============================================================
 
 @st.fragment(run_every=1)
-def simulation_view():
+def simulation_monitor():
 
     # ========================================================
-    # EXECUTAR CICLO
+    # VERIFICAR ERRO DO WORKER
     # ========================================================
 
-    if st.session_state.simulation_running:
+    if engine.last_error is not None:
 
-        try:
+        st.error(
+            f"❌ Erro na simulação: "
+            f"{engine.last_error}"
+        )
 
-            result = engine.process_cycle()
 
-            st.session_state.simulation_result = result
+    # ========================================================
+    # SINCRONIZAR ESTADO
+    # ========================================================
 
-        except Exception as error:
+    worker_running = engine.is_running()
+
+    if not worker_running:
+
+        if state.running:
+
+            # A thread morreu inesperadamente.
 
             state.stop()
 
-            st.session_state.simulation_running = False
+        st.session_state.simulation_running = False
 
-            st.session_state.simulation_result = None
+    else:
 
-            st.error(
-                f"❌ Erro na simulação: {error}"
-            )
-
-            return
+        st.session_state.simulation_running = True
 
 
     # ========================================================
@@ -207,12 +196,14 @@ def simulation_view():
 
     st.divider()
 
-    st.subheader("📡 Estado da Simulação")
+    st.subheader(
+        "📡 Estado da Simulação"
+    )
 
     status = state.get_status()
 
 
-    if status["running"]:
+    if worker_running:
 
         st.success(
             "🟢 Simulação em execução"
@@ -265,7 +256,7 @@ def simulation_view():
 
 
     # ========================================================
-    # INFORMAÇÕES DA SIMULAÇÃO
+    # INFORMAÇÕES
     # ========================================================
 
     st.divider()
@@ -291,7 +282,9 @@ def simulation_view():
 
     with col3:
 
-        simulated_time = status["simulated_time"]
+        simulated_time = (
+            status["simulated_time"]
+        )
 
         st.metric(
             "Tempo simulado",
@@ -302,46 +295,41 @@ def simulation_view():
 
 
     # ========================================================
-    # RESULTADO DO ÚLTIMO CICLO
+    # ÚLTIMO CICLO
     # ========================================================
 
-    result = st.session_state.simulation_result
+    result = engine.last_result
 
 
     if result:
 
         st.divider()
 
-        st.subheader("📊 Último ciclo")
+        st.subheader(
+            "📊 Último ciclo"
+        )
 
 
         sales = result.get(
             "sales",
-            [],
+            []
         )
-
 
         deliveries = result.get(
             "deliveries",
-            [],
+            []
         )
-
 
         decisions = result.get(
             "decisions",
-            [],
+            []
         )
-
 
         purchases = result.get(
             "purchases",
-            [],
+            []
         )
 
-
-        # ----------------------------------------------------
-        # MÉTRICAS DO CICLO
-        # ----------------------------------------------------
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -378,10 +366,6 @@ def simulation_view():
             )
 
 
-        # ----------------------------------------------------
-        # DETALHES
-        # ----------------------------------------------------
-
         if sales:
 
             st.success(
@@ -414,19 +398,21 @@ def simulation_view():
 
 
 # ============================================================
-# EXECUTAR INTERFACE DINÂMICA
+# EXECUTAR MONITOR
 # ============================================================
 
-simulation_view()
+simulation_monitor()
 
 
 # ============================================================
-# DADOS DA SIMULAÇÃO
+# LIMPAR DADOS
 # ============================================================
 
 st.divider()
 
-st.subheader("🗑️ Dados da simulação")
+st.subheader(
+    "🗑️ Dados da simulação"
+)
 
 
 if st.button(
@@ -434,15 +420,17 @@ if st.button(
     use_container_width=True,
 ):
 
-    state.stop()
+    engine.stop()
 
     clear_simulation_data()
 
     state.reset()
 
-    st.session_state.simulation_running = False
+    engine.last_result = None
 
-    st.session_state.simulation_result = None
+    engine.last_error = None
+
+    st.session_state.simulation_running = False
 
     st.success(
         "Dados da simulação removidos."

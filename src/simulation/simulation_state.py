@@ -1,12 +1,16 @@
+
 from datetime import datetime, timedelta
-from src.simulation.scenarios import get_scenarios
+
 from sqlalchemy import text
+
+from src.simulation.scenarios import get_scenarios
 from src.database.connection import engine
 
 
 class SimulationState:
 
     ALLOWED_SPEEDS = [1, 2, 5, 10, 20, 50, 100]
+
     SPEED_TIME = {
         1: timedelta(hours=1),
         2: timedelta(hours=3),
@@ -34,18 +38,37 @@ class SimulationState:
         self.purchases_processed = 0
 
         self.deliveries_processed = 0
+
         self.products_per_cycle = 1
 
         self.simulation_start_time = None
 
+    # ========================================================
+    # CONTROLE
+    # ========================================================
+
     def start(self):
+
+        if self.running:
+            return
 
         if self.simulated_time is None:
 
             last_date = self.get_historical_end()
 
             if last_date:
-                self.simulated_time = last_date + timedelta(minutes=1)
+
+                self.simulated_time = (
+                    last_date + timedelta(minutes=1)
+                )
+
+            else:
+
+                self.simulated_time = datetime.now()
+
+        if self.simulation_start_time is None:
+
+            self.simulation_start_time = self.simulated_time
 
         self.running = True
 
@@ -70,33 +93,48 @@ class SimulationState:
         self.purchases_processed = 0
 
         self.deliveries_processed = 0
+
         self.products_per_cycle = 1
+
         self.simulation_start_time = None
+
+    # ========================================================
+    # CONTADORES
+    # ========================================================
 
     def register_sale(self):
 
         self.sales_processed += 1
+
         self.events_processed += 1
 
     def register_purchase(self):
 
         self.purchases_processed += 1
+
         self.events_processed += 1
 
     def register_delivery(self):
 
         self.deliveries_processed += 1
+
         self.events_processed += 1
 
     def register_event(self):
 
         self.events_processed += 1
 
+    # ========================================================
+    # CONFIGURAÇÕES
+    # ========================================================
+
     def set_speed(self, speed):
 
         if speed not in self.ALLOWED_SPEEDS:
 
-            raise ValueError("Velocidade deve ser 1, 2, 5, 10, 20, 50 ou 100.")
+            raise ValueError(
+                "Velocidade deve ser 1, 2, 5, 10, 20 ou 50."
+            )
 
         self.speed = speed
 
@@ -104,9 +142,25 @@ class SimulationState:
 
         if scenario not in get_scenarios():
 
-            raise ValueError(f"Cenário desconhecido: {scenario}")
+            raise ValueError(
+                f"Cenário desconhecido: {scenario}"
+            )
 
         self.scenario = scenario
+
+    def set_products_per_cycle(self, quantity):
+
+        if quantity < 1:
+
+            raise ValueError(
+                "A quantidade de produtos deve ser maior que zero."
+            )
+
+        self.products_per_cycle = quantity
+
+    # ========================================================
+    # STATUS
+    # ========================================================
 
     def get_status(self):
 
@@ -119,14 +173,12 @@ class SimulationState:
             "sales_processed": self.sales_processed,
             "purchases_processed": self.purchases_processed,
             "deliveries_processed": self.deliveries_processed,
+            "products_per_cycle": self.products_per_cycle,
         }
 
-    def set_products_per_cycle(self, quantity):
-
-        if quantity < 1:
-            raise ValueError("A quantidade de produtos deve ser maior que zero.")
-
-        self.products_per_cycle = quantity
+    # ========================================================
+    # HISTÓRICO
+    # ========================================================
 
     def get_historical_end(self):
 
@@ -138,4 +190,7 @@ class SimulationState:
 
         with engine.connect() as connection:
 
-            return connection.execute(text(query)).scalar()
+            return connection.execute(
+                text(query)
+            ).scalar()
+
