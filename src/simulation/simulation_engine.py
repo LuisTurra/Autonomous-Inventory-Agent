@@ -1,6 +1,5 @@
-
-import threading
 import time
+from datetime import timedelta
 
 from src.agents.monitor import MonitorAgent
 from src.agents.replenishment_agent import ReplenishmentAgent
@@ -11,7 +10,6 @@ from src.simulation.supplier_simulator import SupplierSimulator
 from src.simulation.scenarios import get_scenario
 from src.database.repositories import create_simulation_snapshot
 
-
 class SimulationEngine:
 
     def __init__(self, interval=5):
@@ -21,26 +19,11 @@ class SimulationEngine:
         self.state = SimulationState()
 
         self.sales_generator = SalesGenerator()
-
         self.supplier_simulator = SupplierSimulator()
 
         self.monitor = MonitorAgent()
-
         self.replenishment = ReplenishmentAgent()
-
         self.purchase_generator = PurchaseGenerator()
-
-        self.worker_thread = None
-
-        self.worker_lock = threading.Lock()
-
-        self.last_result = None
-
-        self.last_error = None
-
-    # ========================================================
-    # CICLO
-    # ========================================================
 
     def process_cycle(self):
 
@@ -58,22 +41,10 @@ class SimulationEngine:
 
         sales = []
 
-        # ----------------------------------------------------
-        # VENDAS
-        # ----------------------------------------------------
-
         for _ in range(self.state.speed):
 
-            # Verifica se foi pausada durante o ciclo.
-
-            if not self.state.running:
-
-                break
-
-            sale = (
-                self.sales_generator.generate_sale(
-                    self.state.simulated_time
-                )
+            sale = self.sales_generator.generate_sale(
+                self.state.simulated_time
             )
 
             if sale:
@@ -82,106 +53,65 @@ class SimulationEngine:
 
                 sales.append(sale)
 
-        # ----------------------------------------------------
-        # ENTREGAS
-        # ----------------------------------------------------
-
         deliveries = (
-            self.supplier_simulator.process_deliveries(
-                self.state.simulated_time
-            )
+    self.supplier_simulator
+    .process_deliveries(
+        self.state.simulated_time
+    )
+)
+
+        for _ in deliveries:
+
+            self.state.register_delivery()
+
+        self.monitor.check_inventory()
+
+        decisions = (
+            self.replenishment.analyze()
         )
-
-        if self.state.running:
-
-            for _ in deliveries:
-
-                self.state.register_delivery()
-
-        # ----------------------------------------------------
-        # MONITORAMENTO
-        # ----------------------------------------------------
-
-        if self.state.running:
-
-            self.monitor.check_inventory()
-
-        # ----------------------------------------------------
-        # REPOSIÇÃO
-        # ----------------------------------------------------
-
-        decisions = []
-
-        if self.state.running:
-
-            decisions = self.replenishment.analyze()
-
-        # ----------------------------------------------------
-        # COMPRAS
-        # ----------------------------------------------------
 
         purchases = []
 
-        if self.state.running:
+        for decision in decisions:
 
-            for decision in decisions:
+            purchase_id = self.purchase_generator.create_purchase(
+                product_id=decision["product_id"],
+                quantity=decision["quantity"],
+                simulated_time=self.state.simulated_time,
+                supplier_delay=scenario["supplier_delay"]
+)
 
-                if not self.state.running:
+            if purchase_id:
 
-                    break
+                self.state.register_purchase()
 
-                purchase_id = (
-                    self.purchase_generator.create_purchase(
-                        product_id=decision["product_id"],
-                        quantity=decision["quantity"],
-                        simulated_time=(
-                            self.state.simulated_time
-                        ),
-                        supplier_delay=(
-                            scenario["supplier_delay"]
-                        ),
-                    )
+                purchases.append(
+                    purchase_id
                 )
 
-                if purchase_id:
-
-                    self.state.register_purchase()
-
-                    purchases.append(
-                        purchase_id
-                    )
-
-        # ----------------------------------------------------
-        # TEMPO SIMULADO
-        # ----------------------------------------------------
-
-        if self.state.running:
-
-            self.state.simulated_time += (
-                self.state.SPEED_TIME[
-                    self.state.speed
-                ]
-            )
+        self.state.simulated_time += (
+    self.state.SPEED_TIME[self.state.speed]
+)
 
         return {
             "sales": sales,
             "deliveries": deliveries,
             "decisions": decisions,
             "purchases": purchases,
-            "status": self.state.get_status(),
+            "status": self.state.get_status()
         }
 
-    # ========================================================
-    # WORKER
-    # ========================================================
-
-    def _worker(self):
+    def start(self):
+        create_simulation_snapshot()
+        self.state.start()
 
         print(
-            "Worker da simulação iniciado."
+            "Simulação iniciada."
         )
 
-        self.last_error = None
+        print(
+            "Pressione Ctrl+C para parar."
+        )
 
         while self.state.running:
 
@@ -189,149 +119,46 @@ class SimulationEngine:
 
                 result = self.process_cycle()
 
-                self.last_result = result
-
                 self._print_cycle_summary(
                     result
                 )
 
-                # ------------------------------------------------
-                # Espera interrompível.
-                #
-                # Em vez de simplesmente:
-                #
-                # time.sleep(self.interval)
-                #
-                # verificamos periodicamente se a simulação
-                # ainda está rodando.
-                # ------------------------------------------------
+                time.sleep(self.interval)
 
-                elapsed = 0
+            except KeyboardInterrupt:
 
-                while (
-                    elapsed < self.interval
-                    and self.state.running
-                ):
+                print(
+                    "\nParando simulação..."
+                )
 
-                    time.sleep(0.1)
-
-                    elapsed += 0.1
+                self.stop()
 
             except Exception as error:
-
-                self.last_error = error
 
                 print(
                     f"Simulation error: {error}"
                 )
 
-                self.state.stop()
-
-                break
-
-        print(
-            "Worker da simulação finalizado."
-        )
-
-    # ========================================================
-    # INICIAR EM BACKGROUND
-    # ========================================================
-
-    def start_background(self):
-
-        with self.worker_lock:
-
-            # Não permite duas threads simultâneas.
-
-            if (
-                self.worker_thread is not None
-                and self.worker_thread.is_alive()
-            ):
-
-                return False
-
-            create_simulation_snapshot()
-
-            self.state.start()
-
-            self.last_error = None
-
-            self.worker_thread = threading.Thread(
-                target=self._worker,
-                daemon=True,
-                name="inventory-simulation-worker",
-            )
-
-            self.worker_thread.start()
-
-            return True
-
-    # ========================================================
-    # COMPATIBILIDADE
-    # ========================================================
-
-    def start(self):
-
-        return self.start_background()
+                time.sleep(
+                    self.interval
+                )
 
     def run(self):
 
-        return self.start_background()
-
-    # ========================================================
-    # PARAR
-    # ========================================================
+        self.start()
 
     def stop(self):
 
         self.state.stop()
 
         print(
-            "Solicitação para parar a simulação."
+            "Simulação parada."
         )
-
-    # ========================================================
-    # STATUS DA THREAD
-    # ========================================================
-
-    def is_running(self):
-
-        if not self.state.running:
-
-            return False
-
-        if self.worker_thread is None:
-
-            return False
-
-        return self.worker_thread.is_alive()
-
-    # ========================================================
-    # RESUMO
-    # ========================================================
 
     @staticmethod
     def _print_cycle_summary(result):
 
-        sales = result.get(
-            "sales",
-            []
-        )
-
-        deliveries = result.get(
-            "deliveries",
-            []
-        )
-
-        decisions = result.get(
-            "decisions",
-            []
-        )
-
-        purchases = result.get(
-            "purchases",
-            []
-        )
+        sales = result["sales"]
 
         if sales:
 
@@ -339,42 +166,30 @@ class SimulationEngine:
                 f"Venda: {sales}"
             )
 
-        if deliveries:
+        if result["deliveries"]:
 
             print(
-                f"Entregas: {len(deliveries)}"
+                f"Entregas: "
+                f"{len(result['deliveries'])}"
             )
 
-        if decisions:
+        if result["decisions"]:
 
             print(
-                f"Decisões: {len(decisions)}"
+                f"Decisões: "
+                f"{len(result['decisions'])}"
             )
 
-        if purchases:
+        if result["purchases"]:
 
             print(
-                f"Compras: {len(purchases)}"
+                f"Compras: "
+                f"{len(result['purchases'])}"
             )
 
-
-# ============================================================
-# EXECUÇÃO DIRETA
-# ============================================================
 
 if __name__ == "__main__":
 
     simulation = SimulationEngine()
 
-    simulation.start_background()
-
-    try:
-
-        while simulation.is_running():
-
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-
-        simulation.stop()
-
+    simulation.start()
