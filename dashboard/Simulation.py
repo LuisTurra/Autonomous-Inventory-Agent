@@ -1,5 +1,7 @@
+
 import streamlit as st
-from datetime import datetime
+
+from streamlit_autorefresh import st_autorefresh
 
 from src.simulation.simulation_engine import SimulationEngine
 from src.simulation.scenarios import SCENARIOS
@@ -7,6 +9,7 @@ from src.database.repositories import (
     clear_simulation_data,
     create_simulation_snapshot
 )
+
 
 st.title("⚙️ Simulação")
 
@@ -16,19 +19,25 @@ st.title("⚙️ Simulação")
 # ============================================================
 
 if "simulation_engine" not in st.session_state:
+
     st.session_state.simulation_engine = SimulationEngine(
         interval=5
     )
+
 
 engine = st.session_state.simulation_engine
 state = engine.state
 
 
 if "simulation_running" not in st.session_state:
+
     st.session_state.simulation_running = False
 
+
 if "simulation_result" not in st.session_state:
+
     st.session_state.simulation_result = None
+
 
 # ============================================================
 # CONTROLES
@@ -39,9 +48,9 @@ st.subheader("🎮 Controles")
 col1, col2, col3, col4 = st.columns(4)
 
 
-# ------------------------------------------------------------
+# ============================================================
 # INICIAR
-# ------------------------------------------------------------
+# ============================================================
 
 with col1:
 
@@ -55,9 +64,13 @@ with col1:
         state.start()
 
         st.session_state.simulation_running = True
-# ------------------------------------------------------------
+
+        st.rerun()
+
+
+# ============================================================
 # PAUSAR
-# ------------------------------------------------------------
+# ============================================================
 
 with col2:
 
@@ -70,10 +83,12 @@ with col2:
 
         st.session_state.simulation_running = False
 
+        st.rerun()
 
-# ------------------------------------------------------------
+
+# ============================================================
 # REINICIAR
-# ------------------------------------------------------------
+# ============================================================
 
 with col3:
 
@@ -82,15 +97,20 @@ with col3:
         use_container_width=True
     ):
 
+        state.stop()
+
         state.reset()
 
         st.session_state.simulation_running = False
+
         st.session_state.simulation_result = None
 
+        st.rerun()
 
-# ------------------------------------------------------------
+
+# ============================================================
 # VELOCIDADE
-# ------------------------------------------------------------
+# ============================================================
 
 with col4:
 
@@ -101,11 +121,14 @@ with col4:
             state.speed
         ),
         format_func=lambda x: (
-    f"{x}x — {x}h simuladas/ciclo"
-)
+            f"{x}x — {x}h simuladas/ciclo"
+        )
     )
 
-    state.set_speed(speed)
+    if speed != state.speed:
+
+        state.set_speed(speed)
+
 
 # ============================================================
 # CENÁRIO
@@ -114,6 +137,7 @@ with col4:
 st.divider()
 
 st.subheader("🎯 Cenário")
+
 
 scenario = st.selectbox(
     "Escolha o cenário",
@@ -125,7 +149,53 @@ scenario = st.selectbox(
     )
 )
 
-state.set_scenario(scenario)
+
+if scenario != state.scenario:
+
+    state.set_scenario(scenario)
+
+
+# ============================================================
+# EXECUÇÃO DA SIMULAÇÃO
+# ============================================================
+#
+# IMPORTANTE:
+#
+# Cada rerun do Streamlit executa exatamente UM ciclo.
+#
+# Não usamos:
+#
+#     time.sleep()
+#
+# nem:
+#
+#     while
+#
+# nem:
+#
+#     thread
+#
+# A própria página é atualizada automaticamente.
+#
+# ============================================================
+
+if st.session_state.simulation_running:
+
+    try:
+
+        result = engine.process_cycle()
+
+        st.session_state.simulation_result = result
+
+    except Exception as error:
+
+        state.stop()
+
+        st.session_state.simulation_running = False
+
+        st.error(
+            f"❌ Erro na simulação: {error}"
+        )
 
 
 # ============================================================
@@ -136,16 +206,21 @@ st.divider()
 
 st.subheader("📡 Estado da Simulação")
 
+
 status = state.get_status()
 
 
 if status["running"]:
 
-    st.success("🟢 Simulação em execução")
+    st.success(
+        "🟢 Simulação em execução"
+    )
 
 else:
 
-    st.warning("🔴 Simulação pausada")
+    st.warning(
+        "🔴 Simulação pausada"
+    )
 
 
 # ============================================================
@@ -155,25 +230,36 @@ else:
 col1, col2, col3, col4 = st.columns(4)
 
 
-col1.metric(
-    "Eventos",
-    status["events_processed"]
-)
+with col1:
 
-col2.metric(
-    "Vendas",
-    status["sales_processed"]
-)
+    st.metric(
+        "Eventos",
+        status["events_processed"]
+    )
 
-col3.metric(
-    "Compras",
-    status["purchases_processed"]
-)
 
-col4.metric(
-    "Entregas",
-    status["deliveries_processed"]
-)
+with col2:
+
+    st.metric(
+        "Vendas",
+        status["sales_processed"]
+    )
+
+
+with col3:
+
+    st.metric(
+        "Compras",
+        status["purchases_processed"]
+    )
+
+
+with col4:
+
+    st.metric(
+        "Entregas",
+        status["deliveries_processed"]
+    )
 
 
 # ============================================================
@@ -216,29 +302,6 @@ with col3:
 
 
 # ============================================================
-# EXECUÇÃO DA SIMULAÇÃO
-# ============================================================
-
-if st.session_state.simulation_running:
-
-    try:
-
-        result = engine.process_cycle()
-
-        st.session_state.simulation_result = result
-
-    except Exception as error:
-
-        state.stop()
-
-        st.session_state.simulation_running = False
-
-        st.error(
-            f"❌ Erro na simulação: {error}"
-        )
-
-
-# ============================================================
 # RESULTADO DO ÚLTIMO CICLO
 # ============================================================
 
@@ -249,9 +312,15 @@ if result:
 
     st.divider()
 
-    st.subheader("📊 Último ciclo")
+    st.subheader(
+        "📊 Último ciclo"
+    )
 
-    sales = result.get("sales")
+
+    sales = result.get(
+        "sales",
+        []
+    )
 
     deliveries = result.get(
         "deliveries",
@@ -334,9 +403,17 @@ if result:
             "compra(s) criada(s)."
         )
 
+
+# ============================================================
+# LIMPAR DADOS
+# ============================================================
+
 st.divider()
 
-st.subheader("🗑️ Dados da simulação")
+st.subheader(
+    "🗑️ Dados da simulação"
+)
+
 
 if st.button(
     "🗑️ Limpar dados da simulação",
@@ -350,6 +427,7 @@ if st.button(
     state.reset()
 
     st.session_state.simulation_running = False
+
     st.session_state.simulation_result = None
 
     st.success(
@@ -357,20 +435,47 @@ if st.button(
     )
 
     st.rerun()
+
+
 # ============================================================
-# REFRESH
+# AUTO REFRESH
+# ============================================================
+#
+# O refresh acontece SOMENTE enquanto a simulação está ativa.
+#
+# O intervalo é baseado no intervalo original do Engine.
+#
+# Exemplo:
+#
+# interval = 5 segundos
+#
+# 1x  → 5 segundos entre ciclos
+# 2x  → 2.5 segundos
+# 5x  → 1 segundo
+# 10x → 0.5 segundo
+#
+# O mínimo é 100 ms para evitar refresh excessivo.
+#
 # ============================================================
 
 if st.session_state.simulation_running:
 
-    import time
-
-    time.sleep(
-        max(
-            0.1,
-            engine.interval /
-            max(state.speed, 1)
+    refresh_ms = max(
+        100,
+        int(
+            (
+                engine.interval
+                * 1000
+            )
+            / max(
+                state.speed,
+                1
+            )
         )
     )
 
-    st.rerun()
+    st_autorefresh(
+        interval=refresh_ms,
+        key="simulation_autorefresh"
+    )
+
