@@ -1,0 +1,63 @@
+projeto.txt
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Logs
+*.log
+logs/
+
+# Local database / generated data
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated files
+outputs/
+reports/
+tmp/
+cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+neon setup.txt
+performance_test.py
+test_database.py
+setup_project.py
+run_simulation.py
+data/raw/olist_geolocation_dataset.csv

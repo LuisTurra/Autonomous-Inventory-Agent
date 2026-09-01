@@ -1,0 +1,9 @@
+streamlit
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+python-dotenv
+groq
+scikit-learn
+plotly
