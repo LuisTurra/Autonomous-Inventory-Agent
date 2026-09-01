@@ -1448,3 +1448,11 @@ Um sistema de estoque orientado por dados que combina:
     📈 Streamlit
 
 O objetivo é transformar dados históricos em uma operação simulada capaz de monitorar, analisar, decidir e executar ações de forma autônoma.
+
+## 🛠️ Technologies
+
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![SQL](https://img.shields.io/badge/SQL-336791?logo=postgresql&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas&logoColor=white)
