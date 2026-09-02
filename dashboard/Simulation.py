@@ -1,162 +1,330 @@
-from datetime import datetime
+import time
+
 import streamlit as st
 
-from src.database.repositories import clear_simulation_data, create_simulation_snapshot
+from src.simulation.simulation_worker import simulation_worker
 from src.simulation.scenarios import SCENARIOS
-from src.simulation.simulation_engine import SimulationEngine
+
+from src.database.repositories import (
+    clear_simulation_data,
+    create_simulation_snapshot
+)
+
 
 st.title("⚙️ Simulação")
 
-# ============================================================
-# INICIALIZAÇÃO
-# ============================================================
-
-if "simulation_engine" not in st.session_state:
-    st.session_state.simulation_engine = SimulationEngine(interval=5)
-
-engine = st.session_state.simulation_engine
-state = engine.state
-
-if "simulation_running" not in st.session_state:
-    st.session_state.simulation_running = False
-
-if "simulation_result" not in st.session_state:
-    st.session_state.simulation_result = None
 
 # ============================================================
-# CONTROLES & EVENTOS GLOBAL
+# WORKER
+# ============================================================
+
+worker = simulation_worker
+
+# Garante que a thread exista.
+# Isso NÃO inicia a simulação.
+worker.ensure_running()
+
+state = worker.state
+
+
+# ============================================================
+# CONTROLES
 # ============================================================
 
 st.subheader("🎮 Controles")
+
 col1, col2, col3, col4 = st.columns(4)
 
+
+# ------------------------------------------------------------
+# INICIAR
+# ------------------------------------------------------------
+
 with col1:
-    if st.button("▶️ Iniciar", use_container_width=True, disabled=st.session_state.simulation_running):
+
+    if st.button(
+        "▶️ Iniciar",
+        width="stretch"
+    ):
+
         create_simulation_snapshot()
-        state.start()
-        st.session_state.simulation_running = True
+
+        worker.start()
+
         st.rerun()
+
+
+# ------------------------------------------------------------
+# PAUSAR
+# ------------------------------------------------------------
 
 with col2:
-    if st.button("⏸️ Pausar", use_container_width=True, disabled=not st.session_state.simulation_running):
-        state.stop()
-        st.session_state.simulation_running = False
+
+    if st.button(
+        "⏸️ Pausar",
+        width="stretch"
+    ):
+
+        worker.stop()
+
         st.rerun()
+
+
+# ------------------------------------------------------------
+# REINICIAR
+# ------------------------------------------------------------
 
 with col3:
-    if st.button("↻ Reiniciar", use_container_width=True):
-        state.reset()
-        st.session_state.simulation_running = False
-        st.session_state.simulation_result = None
+
+    if st.button(
+        "↻ Reiniciar",
+        width="stretch"
+    ):
+
+        worker.reset()
+
         st.rerun()
 
+
+# ------------------------------------------------------------
+# VELOCIDADE
+# ------------------------------------------------------------
+
 with col4:
+
     speed = st.selectbox(
         "Velocidade",
         state.ALLOWED_SPEEDS,
-        index=state.ALLOWED_SPEEDS.index(state.speed),
-        format_func=lambda x: f"{x}x — {x}h simuladas/ciclo",
+        index=state.ALLOWED_SPEEDS.index(
+            state.speed
+        ),
+        format_func=lambda x: (
+            f"{x}x — {x}h simuladas/ciclo"
+        )
     )
-    state.set_speed(speed)
+
+    if speed != state.speed:
+
+        state.set_speed(speed)
+
+
+# ============================================================
+# CENÁRIO
+# ============================================================
 
 st.divider()
+
 st.subheader("🎯 Cenário")
 
 scenario = st.selectbox(
     "Escolha o cenário",
     list(SCENARIOS.keys()),
-    index=list(SCENARIOS.keys()).index(state.scenario),
+    index=list(SCENARIOS.keys()).index(
+        state.scenario
+    )
 )
-state.set_scenario(scenario)
+
+if scenario != state.scenario:
+
+    state.set_scenario(scenario)
+
+
+# ============================================================
+# STATUS
+# ============================================================
 
 st.divider()
 
+st.subheader("📡 Estado da Simulação")
+
+status = worker.get_status()
+
+
+if status["running"]:
+
+    st.success("🟢 Simulação em execução")
+
+else:
+
+    st.warning("🔴 Simulação pausada")
+
+
 # ============================================================
-# CICLO DA SIMULAÇÃO (ISOLADO COM FRAGMENT)
+# MÉTRICAS
 # ============================================================
 
-# Define dynamic interval based on speed: interval / speed (minimum 0.5s for stability)
-refresh_interval = max(0.5, engine.interval / max(state.speed, 1))
+col1, col2, col3, col4 = st.columns(4)
 
-@st.fragment(run_every=refresh_interval if st.session_state.simulation_running else None)
-def render_simulation_loop():
-    # Process cycle inside the fragment if running
-    if st.session_state.simulation_running:
-        try:
-            result = engine.process_cycle()
-            st.session_state.simulation_result = result
-        except Exception as error:
-            state.stop()
-            st.session_state.simulation_running = False
-            st.error(f"❌ Erro na simulação: {error}")
-            return
+col1.metric(
+    "Eventos",
+    status["events_processed"]
+)
 
-    status = state.get_status()
+col2.metric(
+    "Vendas",
+    status["sales_processed"]
+)
 
-    # 1. Status Indicator
-    st.subheader("📡 Estado da Simulação")
-    if status["running"]:
-        st.success("🟢 Simulação em execução")
-    else:
-        st.warning("🔴 Simulação pausada")
+col3.metric(
+    "Compras",
+    status["purchases_processed"]
+)
 
-    # 2. Key Metrics
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Eventos", status["events_processed"])
-    m2.metric("Vendas", status["sales_processed"])
-    m3.metric("Compras", status["purchases_processed"])
-    m4.metric("Entregas", status["deliveries_processed"])
+col4.metric(
+    "Entregas",
+    status["deliveries_processed"]
+)
 
-    # 3. Simulation Info
-    i1, i2, i3 = st.columns(3)
-    i1.metric("Cenário", status["scenario"])
-    i2.metric("Velocidade", f'{status["speed"]}x')
-    
+
+# ============================================================
+# INFORMAÇÕES
+# ============================================================
+
+st.divider()
+
+col1, col2, col3 = st.columns(3)
+
+
+with col1:
+
+    st.metric(
+        "Cenário",
+        status["scenario"]
+    )
+
+
+with col2:
+
+    st.metric(
+        "Velocidade",
+        f'{status["speed"]}x'
+    )
+
+
+with col3:
+
     simulated_time = status["simulated_time"]
-    time_str = simulated_time.strftime("%d/%m/%Y %H:%M") if simulated_time else "N/A"
-    i3.metric("Tempo simulado", time_str)
 
-    # 4. Last Cycle Results
-    result = st.session_state.simulation_result
-    if result:
-        st.divider()
-        st.subheader("📊 Último ciclo")
+    st.metric(
+        "Tempo simulado",
+        simulated_time.strftime(
+            "%d/%m/%Y %H:%M"
+        )
+    )
 
-        sales = result.get("sales")
-        deliveries = result.get("deliveries", [])
-        decisions = result.get("decisions", [])
-        purchases = result.get("purchases", [])
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Vendas", "Sim" if sales else "Não")
-        c2.metric("Entregas", len(deliveries))
-        c3.metric("Decisões", len(decisions))
-        c4.metric("Compras", len(purchases))
-
-        if sales:
-            st.success(f"🛒 Venda gerada: {sales}")
-        if deliveries:
-            st.info(f"📦 {len(deliveries)} entrega(s) processada(s).")
-        if decisions:
-            st.warning(f"🤖 {len(decisions)} decisão(ões) de reposição.")
-        if purchases:
-            st.success(f"🚚 {len(purchases)} compra(s) criada(s).")
-
-# Render isolated simulation component
-render_simulation_loop()
 
 # ============================================================
-# LIMPEZA DE DADOS
+# ERRO DO WORKER
+# ============================================================
+
+error = worker.get_error()
+
+if error:
+
+    st.error(
+        f"❌ Erro na simulação: {error}"
+    )
+
+
+# ============================================================
+# ÚLTIMO CICLO
+# ============================================================
+
+result = worker.get_last_result()
+
+
+if result:
+
+    st.divider()
+
+    st.subheader("📊 Último ciclo")
+
+    sales = result.get(
+        "sales",
+        []
+    )
+
+    deliveries = result.get(
+        "deliveries",
+        []
+    )
+
+    decisions = result.get(
+        "decisions",
+        []
+    )
+
+    purchases = result.get(
+        "purchases",
+        []
+    )
+
+
+    col1, col2, col3, col4 = st.columns(4)
+
+
+    col1.metric(
+        "Vendas no ciclo",
+        len(sales)
+    )
+
+    col2.metric(
+        "Entregas no ciclo",
+        len(deliveries)
+    )
+
+    col3.metric(
+        "Decisões",
+        len(decisions)
+    )
+
+    col4.metric(
+        "Compras",
+        len(purchases)
+    )
+
+
+# ============================================================
+# DADOS DA SIMULAÇÃO
 # ============================================================
 
 st.divider()
+
 st.subheader("🗑️ Dados da simulação")
 
-if st.button("🗑️ Limpar dados da simulação", use_container_width=True):
-    state.stop()
+
+if st.button(
+    "🗑️ Limpar dados da simulação",
+    width="stretch"
+):
+
+    worker.reset()
+
     clear_simulation_data()
-    state.reset()
-    st.session_state.simulation_running = False
-    st.session_state.simulation_result = None
-    st.success("Dados da simulação removidos.")
+
+    st.success(
+        "Dados da simulação removidos."
+    )
+
+    st.rerun()
+
+
+# ============================================================
+# ATUALIZAÇÃO DA INTERFACE
+# ============================================================
+
+if status["running"]:
+
+    # IMPORTANTE:
+    #
+    # Este sleep NÃO executa a simulação.
+    #
+    # Ele apenas controla a frequência com que
+    # esta página atualiza os números na tela.
+    #
+    # A simulação está sendo executada pela thread
+    # SimulationWorker.
+
+    time.sleep(1)
+
     st.rerun()

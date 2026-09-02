@@ -10,6 +10,7 @@ from src.simulation.supplier_simulator import SupplierSimulator
 from src.simulation.scenarios import get_scenario
 from src.database.repositories import create_simulation_snapshot
 
+
 class SimulationEngine:
 
     def __init__(self, interval=5):
@@ -23,13 +24,16 @@ class SimulationEngine:
 
         self.monitor = MonitorAgent()
         self.replenishment = ReplenishmentAgent()
+
         self.purchase_generator = PurchaseGenerator()
+
+    # ============================================================
+    # UM CICLO DA SIMULAÇÃO
+    # ============================================================
 
     def process_cycle(self):
 
-        scenario = get_scenario(
-            self.state.scenario
-        )
+        scenario = get_scenario(self.state.scenario)
 
         self.sales_generator.sales_multiplier = (
             scenario["sales_multiplier"]
@@ -38,6 +42,10 @@ class SimulationEngine:
         self.supplier_simulator.delay_days = (
             scenario["supplier_delay"]
         )
+
+        # --------------------------------------------------------
+        # VENDAS
+        # --------------------------------------------------------
 
         sales = []
 
@@ -53,22 +61,33 @@ class SimulationEngine:
 
                 sales.append(sale)
 
-        deliveries = (
-    self.supplier_simulator
-    .process_deliveries(
-        self.state.simulated_time
-    )
-)
+        # --------------------------------------------------------
+        # ENTREGAS
+        # --------------------------------------------------------
+
+        deliveries = self.supplier_simulator.process_deliveries(
+            self.state.simulated_time
+        )
 
         for _ in deliveries:
 
             self.state.register_delivery()
 
+        # --------------------------------------------------------
+        # MONITORAMENTO
+        # --------------------------------------------------------
+
         self.monitor.check_inventory()
 
-        decisions = (
-            self.replenishment.analyze()
-        )
+        # --------------------------------------------------------
+        # REABASTECIMENTO
+        # --------------------------------------------------------
+
+        decisions = self.replenishment.analyze()
+
+        # --------------------------------------------------------
+        # COMPRAS
+        # --------------------------------------------------------
 
         purchases = []
 
@@ -79,19 +98,25 @@ class SimulationEngine:
                 quantity=decision["quantity"],
                 simulated_time=self.state.simulated_time,
                 supplier_delay=scenario["supplier_delay"]
-)
+            )
 
             if purchase_id:
 
                 self.state.register_purchase()
 
-                purchases.append(
-                    purchase_id
-                )
+                purchases.append(purchase_id)
+
+        # --------------------------------------------------------
+        # AVANÇA TEMPO SIMULADO
+        # --------------------------------------------------------
 
         self.state.simulated_time += (
-    self.state.SPEED_TIME[self.state.speed]
-)
+            self.state.SPEED_TIME[self.state.speed]
+        )
+
+        # --------------------------------------------------------
+        # RESULTADO
+        # --------------------------------------------------------
 
         return {
             "sales": sales,
@@ -101,17 +126,18 @@ class SimulationEngine:
             "status": self.state.get_status()
         }
 
+    # ============================================================
+    # EXECUÇÃO MANUAL / CLI
+    # ============================================================
+
     def start(self):
+
         create_simulation_snapshot()
+
         self.state.start()
 
-        print(
-            "Simulação iniciada."
-        )
-
-        print(
-            "Pressione Ctrl+C para parar."
-        )
+        print("Simulação iniciada.")
+        print("Pressione Ctrl+C para parar.")
 
         while self.state.running:
 
@@ -119,29 +145,21 @@ class SimulationEngine:
 
                 result = self.process_cycle()
 
-                self._print_cycle_summary(
-                    result
-                )
+                self._print_cycle_summary(result)
 
                 time.sleep(self.interval)
 
             except KeyboardInterrupt:
 
-                print(
-                    "\nParando simulação..."
-                )
+                print("\nParando simulação...")
 
                 self.stop()
 
             except Exception as error:
 
-                print(
-                    f"Simulation error: {error}"
-                )
+                print(f"Simulation error: {error}")
 
-                time.sleep(
-                    self.interval
-                )
+                time.sleep(self.interval)
 
     def run(self):
 
@@ -151,9 +169,7 @@ class SimulationEngine:
 
         self.state.stop()
 
-        print(
-            "Simulação parada."
-        )
+        print("Simulação parada.")
 
     @staticmethod
     def _print_cycle_summary(result):
@@ -161,30 +177,21 @@ class SimulationEngine:
         sales = result["sales"]
 
         if sales:
-
-            print(
-                f"Venda: {sales}"
-            )
+            print(f"Venda: {sales}")
 
         if result["deliveries"]:
-
             print(
-                f"Entregas: "
-                f"{len(result['deliveries'])}"
+                f"Entregas: {len(result['deliveries'])}"
             )
 
         if result["decisions"]:
-
             print(
-                f"Decisões: "
-                f"{len(result['decisions'])}"
+                f"Decisões: {len(result['decisions'])}"
             )
 
         if result["purchases"]:
-
             print(
-                f"Compras: "
-                f"{len(result['purchases'])}"
+                f"Compras: {len(result['purchases'])}"
             )
 
 
