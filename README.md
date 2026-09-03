@@ -252,21 +252,176 @@ Essas características influenciam a simulação de compras e entregas.
 
 ---
 
-## 🧪 Simulation
+
+## 🧪 Simulation**
 
 É uma das principais funcionalidades do projeto.
 
 A página permite controlar a simulação diretamente pelo Streamlit.
 
+### 🖥️ Desktop
+
+No ambiente Desktop, a aplicação utiliza o motor de simulação em execução contínua.
+
 Controles incluem:
 
 - iniciar;
+
 - pausar;
+
 - reiniciar;
+
 - alterar velocidade;
+
 - selecionar cenário;
-- controlar quantidade de produtos processados por ciclo;
+
+- controlar a quantidade de produtos processados por ciclo;
+
 - limpar dados gerados pela simulação.
+
+A simulação é executada pelo `SimulationWorker`, que mantém o `SimulationEngine` funcionando em segundo plano enquanto a interface acompanha seu estado.
+
+O fluxo permite observar continuamente:
+
+```
+Vendas
+
+  ↓
+
+Estoque
+
+  ↓
+
+Monitoramento
+
+  ↓
+
+Reposição
+
+  ↓
+
+Compra
+
+  ↓
+
+Fornecedor
+
+  ↓
+
+Entrega
+
+  ↓
+
+Estoque
+```
+
+**---**
+
+### ☁️ Streamlit Cloud — Demo Mode
+
+No Streamlit Cloud, a aplicação utiliza um **Demo Mode**.
+
+O ambiente Cloud não executa a simulação contínua com `SimulationWorker`. Em vez disso, utiliza um **Demo Dataset pré-gerado** para apresentar o comportamento completo do sistema de forma estável e reproduzível.
+
+O Demo Dataset contém dados simulados previamente produzidos pelo motor de simulação, incluindo:
+
+- vendas;
+
+- movimentos de estoque;
+
+- eventos;
+
+- tarefas;
+
+- decisões;
+
+- compras;
+
+- entregas;
+
+- diferentes situações de demanda e fornecimento.
+
+Dessa forma, o visitante pode navegar pelo dashboard e observar os resultados da operação simulada sem depender de uma simulação contínua sendo executada no Streamlit Cloud.
+
+O Demo Mode permite demonstrar o fluxo completo do agente:
+
+```
+Dados históricos
+
+      ↓
+
+Simulação pré-gerada
+
+      ↓
+
+Vendas
+
+      ↓
+
+Estoque
+
+      ↓
+
+LOW\_STOCK
+
+      ↓
+
+Task REPLENISHMENT
+
+      ↓
+
+Decision
+
+      ↓
+
+Purchase
+
+      ↓
+
+Supplier
+
+      ↓
+
+Delivery
+```
+
+O Demo Dataset é armazenado no PostgreSQL utilizado pela aplicação Cloud e serve como estado inicial da demonstração.
+
+Isso mantém a experiência do visitante consistente, mesmo quando diferentes pessoas acessam a aplicação.
+
+**---**
+
+### 🎯 Objetivo do Demo Mode
+
+O Demo Mode existe principalmente para disponibilizar uma demonstração pública estável do projeto.
+
+Enquanto o Desktop permite experimentar a simulação em tempo real, o Streamlit Cloud apresenta um estado pré-gerado que permite visualizar os resultados da operação sem exigir processamento contínuo.
+
+Assim, os dois ambientes possuem objetivos diferentes:
+
+```
+Desktop
+
+→ Simulação real e contínua
+
+→ Controle da execução
+
+→ Experimentação de cenários
+
+→ Geração dinâmica de dados
+
+
+
+Streamlit Cloud
+
+→ Demo Mode
+
+→ Dataset pré-gerado
+
+→ Experiência estável
+
+→ Visualização dos resultados da simulação
+
 
 ---
 
