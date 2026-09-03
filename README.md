@@ -422,7 +422,7 @@ Streamlit Cloud
 
 → Visualização dos resultados da simulação
 
-
+**---**
 ---
 
 # 🤖 Agentes Autônomos
