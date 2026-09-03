@@ -165,40 +165,7 @@ if IS_CLOUD:
 
     
 
-    st.subheader("🗑️ Dados da simulação")
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    if st.button(
-        "🗑️ Limpar dados da simulação",
-        width="stretch"
-    ):
-
-        clear_simulation_data()
-
-        st.success(
-            "Dados da simulação removidos."
-        )
-
-        st.rerun()
-
-
-with col2:
-
-    if st.button(
-        "🔄 Restaurar Demo Dataset",
-        width="stretch"
-    ):
-
-        load_demo()
-
-        st.success(
-            "Demo Dataset restaurado."
-        )
-
-        st.rerun()
+    
 
     # --------------------------------------------------------
     # ENCERRA O MODO CLOUD
