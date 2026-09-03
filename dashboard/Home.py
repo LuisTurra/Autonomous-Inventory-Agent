@@ -1,20 +1,47 @@
+
 import streamlit as st
 import pandas as pd
+
 from src.database.repositories import clear_simulation_data
 from src.database.connection import engine
+
+
 # ============================================================
-# LIMPEZA AUTOMÁTICA AO ABRIR O SISTEMA
+# CONFIGURAÇÃO DO AMBIENTE
+# ============================================================
+
+try:
+    APP_MODE = st.secrets["APP_MODE"]
+except Exception:
+    APP_MODE = "desktop"
+
+IS_CLOUD = APP_MODE == "cloud"
+
+# ============================================================
+# LIMPEZA AUTOMÁTICA
 # ============================================================
 
 if "simulation_initialized" not in st.session_state:
 
-    clear_simulation_data()
+    if not IS_CLOUD:
+
+        clear_simulation_data()
 
     st.session_state.simulation_initialized = True
+
+
+# ============================================================
+# TÍTULO
+# ============================================================
 
 st.title("📦 Autonomous Inventory Agent")
 
 st.caption("Control Room")
+
+
+# ============================================================
+# RESUMO DO ESTOQUE
+# ============================================================
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -71,6 +98,10 @@ col4.metric(
 )
 
 
+# ============================================================
+# ATIVIDADE
+# ============================================================
+
 st.divider()
 
 st.subheader("⚡ Live Activity")
@@ -104,13 +135,29 @@ else:
     )
 
 
+# ============================================================
+# STATUS DOS AGENTES
+# ============================================================
+
 st.divider()
 
 st.subheader("🤖 Agent Status")
 
 col1, col2, col3, col4 = st.columns(4)
 
-col1.success("Monitor\n\n🟢 ACTIVE")
-col2.success("Sales\n\n🟢 ACTIVE")
-col3.success("Demand\n\n🟢 ACTIVE")
-col4.warning("Replenishment\n\n🟡 WAITING")
+col1.success(
+    "Monitor\n\n🟢 ACTIVE"
+)
+
+col2.success(
+    "Sales\n\n🟢 ACTIVE"
+)
+
+col3.success(
+    "Demand\n\n🟢 ACTIVE"
+)
+
+col4.warning(
+    "Replenishment\n\n🟡 WAITING"
+)
+

@@ -52,15 +52,17 @@ class MonitorAgent:
                         product["minimum_stock"],
                     "reorder_quantity":
                         product["reorder_quantity"]
-                }
+                },
+                is_simulated=True,
             )
 
             create_task(
-                task_type="REPLENISHMENT",
-                product_id=product_id,
-                quantity=product["reorder_quantity"],
-                priority="HIGH"
-            )
+    task_type="REPLENISHMENT",
+    product_id=product_id,
+    quantity=product["reorder_quantity"],
+    priority="HIGH",
+    is_simulated=True
+)
 
             monitored_products.append(
                 product

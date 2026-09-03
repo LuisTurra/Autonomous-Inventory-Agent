@@ -112,11 +112,12 @@ GROUP BY s.product_id
         if current_stock <= 0:
 
             register_event(
-                event_type="OUT_OF_STOCK",
-                product_id=product_id,
-                quantity=0,
-                event_data={"simulated_time": simulated_time.isoformat()},
-            )
+    event_type="OUT_OF_STOCK",
+    product_id=product_id,
+    quantity=0,
+    event_data={"simulated_time": simulated_time.isoformat()},
+    is_simulated=True,
+)
 
             return {"product_id": product_id, "quantity": 0, "status": "OUT_OF_STOCK"}
 
@@ -161,6 +162,7 @@ GROUP BY s.product_id
                 "unit_price": unit_price,
                 "simulated_time": simulated_time.isoformat(),
             },
+            is_simulated=True,
         )
 
         return {

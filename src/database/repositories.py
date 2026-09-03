@@ -151,7 +151,7 @@ def register_event(
         return result.scalar()
 
 
-def create_task(task_type, product_id, quantity, priority="MEDIUM"):
+def create_task(task_type, product_id, quantity, priority="MEDIUM", is_simulated=False):
 
     query = """
         INSERT INTO tasks (
@@ -159,14 +159,16 @@ def create_task(task_type, product_id, quantity, priority="MEDIUM"):
             product_id,
             quantity,
             priority,
-            status
+            status,
+            is_simulated
         )
         VALUES (
             :task_type,
             :product_id,
             :quantity,
             :priority,
-            'PENDING'
+            'PENDING',
+            :is_simulated
         )
         RETURNING task_id
     """
@@ -180,6 +182,7 @@ def create_task(task_type, product_id, quantity, priority="MEDIUM"):
                 "product_id": product_id,
                 "quantity": quantity,
                 "priority": priority,
+                "is_simulated": is_simulated,
             },
         )
 
@@ -382,16 +385,27 @@ def clear_simulation_data():
         # RESTAURAR ESTOQUE ORIGINAL
         # ====================================================
 
-        connection.execute(text("""
-            UPDATE inventory
-            SET
-                quantity = 50,
-                reserved_quantity = 0,
-                minimum_stock = 10,
-                reorder_point = 20,
-                reorder_quantity = 50,
-                updated_at = CURRENT_TIMESTAMP
-        """))
+        snapshot_exists = connection.execute(text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM simulation_inventory_snapshot
+            )
+        """)).scalar()
+
+        if snapshot_exists:
+
+            connection.execute(text("""
+                UPDATE inventory i
+                SET
+                    quantity = s.quantity,
+                    reserved_quantity = s.reserved_quantity,
+                    minimum_stock = s.minimum_stock,
+                    reorder_point = s.reorder_point,
+                    reorder_quantity = s.reorder_quantity,
+                    updated_at = CURRENT_TIMESTAMP
+                FROM simulation_inventory_snapshot s
+                WHERE i.product_id = s.product_id
+            """))
 
         # ====================================================
         # REMOVER DADOS GERADOS PELA SIMULAÇÃO
@@ -425,8 +439,4 @@ def clear_simulation_data():
         connection.execute(text("""
             DELETE FROM decisions
             WHERE is_simulated = TRUE
-        """))
-
-        connection.execute(text("""
-            DELETE FROM simulation_inventory_snapshot
         """))
