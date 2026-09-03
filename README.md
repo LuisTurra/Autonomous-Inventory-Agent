@@ -421,7 +421,7 @@ Streamlit Cloud
 → Experiência estável
 
 → Visualização dos resultados da simulação
-
+```
 **---**
 ---
 
