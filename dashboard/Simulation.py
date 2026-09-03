@@ -2,7 +2,7 @@ import streamlit as st
 
 from src.simulation.scenarios import SCENARIOS
 from src.database.repositories import clear_simulation_data
-
+from src.database.demo_loader import load_demo
 # ============================================================
 # CONFIGURAÇÃO DO AMBIENTE
 # ============================================================
@@ -163,13 +163,40 @@ if IS_CLOUD:
 
     st.divider()
 
+    
+
     st.subheader("🗑️ Dados da simulação")
 
-    if st.button("🗑️ Limpar dados da simulação", width="stretch"):
+col1, col2 = st.columns(2)
+
+with col1:
+
+    if st.button(
+        "🗑️ Limpar dados da simulação",
+        width="stretch"
+    ):
 
         clear_simulation_data()
 
-        st.success("Dados da simulação removidos.")
+        st.success(
+            "Dados da simulação removidos."
+        )
+
+        st.rerun()
+
+
+with col2:
+
+    if st.button(
+        "🔄 Restaurar Demo Dataset",
+        width="stretch"
+    ):
+
+        load_demo()
+
+        st.success(
+            "Demo Dataset restaurado."
+        )
 
         st.rerun()
 

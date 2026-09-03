@@ -38,7 +38,11 @@ st.title("📦 Autonomous Inventory Agent")
 
 st.caption("Control Room")
 
-
+if IS_CLOUD:
+    st.info(
+        "☁️ **Demo Dataset ativo** — "
+        "dados simulados pré-gerados estão carregados na base."
+    )
 # ============================================================
 # RESUMO DO ESTOQUE
 # ============================================================
